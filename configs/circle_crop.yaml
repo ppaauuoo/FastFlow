@@ -1,0 +1,16 @@
+circle:
+  x: 3571
+  y: 1583
+  min_radius: 170
+  max_radius: 190
+
+detection:
+  param1: 100
+  param2: 50
+  min_dist: 50
+
+images:
+  supported_formats:
+    - .jpg
+    - .jpeg
+    - .png
