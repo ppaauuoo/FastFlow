@@ -19,9 +19,11 @@ class MVTecDataset(torch.utils.data.Dataset):
         if is_train:
             self.image_files = glob(
                 os.path.join(root, category, "train", "good", "*.png")
-            )
+            ) + glob(os.path.join(root, category, "train", "good", "*.jpg"))
         else:
-            self.image_files = glob(os.path.join(root, category, "test", "*", "*.png"))
+            self.image_files = glob(
+                os.path.join(root, category, "test", "*", "*.png")
+            ) + glob(os.path.join(root, category, "test", "*", "*.jpg"))
             self.target_transform = transforms.Compose(
                 [
                     transforms.Resize(input_size),
@@ -32,7 +34,7 @@ class MVTecDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         image_file = self.image_files[index]
-        image = Image.open(image_file)
+        image = Image.open(image_file).convert("RGB")
         image = self.image_transform(image)
         if self.is_train:
             return image
@@ -40,11 +42,10 @@ class MVTecDataset(torch.utils.data.Dataset):
             if os.path.dirname(image_file).endswith("good"):
                 target = torch.zeros([1, image.shape[-2], image.shape[-1]])
             else:
-                target = Image.open(
-                    image_file.replace("/test/", "/ground_truth/").replace(
-                        ".png", "_mask.png"
-                    )
-                )
+                test_token = f"{os.sep}test{os.sep}"
+                gt_token = f"{os.sep}ground_truth{os.sep}"
+                gt_image_file = image_file.replace(test_token, gt_token)
+                target = Image.open(gt_image_file).convert("L")
                 target = self.target_transform(target)
             return image, target
 

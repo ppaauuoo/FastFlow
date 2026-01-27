@@ -4,11 +4,15 @@ import os
 import torch
 import yaml
 from ignite.contrib import metrics
+from tqdm import tqdm
 
 import constants as const
 import dataset
 import fastflow
 import utils
+
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def build_train_data_loader(args, config):
@@ -70,7 +74,7 @@ def train_one_epoch(dataloader, model, optimizer, epoch):
     loss_meter = utils.AverageMeter()
     for step, data in enumerate(dataloader):
         # forward
-        data = data.cuda()
+        data = data.to(device)
         ret = model(data)
         loss = ret["loss"]
         # backward
@@ -91,7 +95,7 @@ def eval_once(dataloader, model):
     model.eval()
     auroc_metric = metrics.ROC_AUC()
     for data, targets in dataloader:
-        data, targets = data.cuda(), targets.cuda()
+        data, targets = data.to(device), targets.to(device)
         with torch.no_grad():
             ret = model(data)
         outputs = ret["anomaly_map"].cpu().detach()
@@ -115,9 +119,10 @@ def train(args):
 
     train_dataloader = build_train_data_loader(args, config)
     test_dataloader = build_test_data_loader(args, config)
-    model.cuda()
+    model.to(device)
+    print(f"Using device: {device}")
 
-    for epoch in range(const.NUM_EPOCHS):
+    for epoch in tqdm(range(const.NUM_EPOCHS)):
         train_one_epoch(train_dataloader, model, optimizer, epoch)
         if (epoch + 1) % const.EVAL_INTERVAL == 0:
             eval_once(test_dataloader, model)
@@ -135,10 +140,11 @@ def train(args):
 def evaluate(args):
     config = yaml.safe_load(open(args.config, "r"))
     model = build_model(config)
-    checkpoint = torch.load(args.checkpoint)
+    checkpoint = torch.load(args.checkpoint, map_location=device)
     model.load_state_dict(checkpoint["model_state_dict"])
     test_dataloader = build_test_data_loader(args, config)
-    model.cuda()
+    model.to(device)
+    print(f"Using device: {device}")
     eval_once(test_dataloader, model)
 
 
