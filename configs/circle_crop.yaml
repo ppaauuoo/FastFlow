@@ -5,8 +5,8 @@ circle:
   max_radius: 190
 
 detection:
-  param1: 100
-  param2: 50
+  param1: 50
+  param2: 30
   min_dist: 50
 
 images:
