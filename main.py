@@ -6,6 +6,10 @@ import yaml
 from ignite.contrib import metrics
 from tqdm import tqdm
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
 import constants as const
 import dataset
 import fastflow
@@ -46,6 +50,21 @@ def build_test_data_loader(args, config):
         drop_last=False,
     )
 
+def build_validate_data_loader(args, config):
+    test_dataset = dataset.MVTecDataset(
+        root=args.data,
+        category=args.category,
+        input_size=config["input_size"],
+        is_train=True,
+        return_filename=True,
+    )
+    return torch.utils.data.DataLoader(
+        test_dataset,
+        batch_size=const.BATCH_SIZE,
+        shuffle=False,
+        num_workers=4,
+        drop_last=False,
+    )
 
 def build_model(config):
     model = fastflow.FastFlow(
@@ -105,6 +124,64 @@ def eval_once(dataloader, model):
     auroc = auroc_metric.compute()
     print("AUROC: {}".format(auroc))
 
+def validate_once(dataloader, model):
+    model.eval()
+    outputs_list = []
+    filenames_list = []
+    for data, filenames in dataloader:
+        data = data.to(device)
+        with torch.no_grad():
+            ret = model(data)
+        outputs = ret["anomaly_map"].cpu().detach()
+        for i in range(outputs.shape[0]):
+            outputs_list.append(outputs[i, 0])
+            filenames_list.append(filenames[i])
+    return outputs_list, filenames_list
+
+
+def plot_outputs(outputs_list, output_dir, prefix="validate", filenames_list=None):
+    os.makedirs(output_dir, exist_ok=True)
+
+    for i, outputs in enumerate(outputs_list):
+        img = outputs.numpy()
+        fig = plt.figure(figsize=(8, 8))
+        plt.imshow(img, cmap="hot", interpolation="nearest")
+        plt.colorbar()
+        if filenames_list:
+            filename = filenames_list[i]
+            plt.title(f"{prefix} - {filename}")
+            save_name = os.path.splitext(filename)[0] + ".png"
+        else:
+            plt.title(f"{prefix} image {i}")
+            save_name = f"{prefix}_img_{i:03d}.png"
+        plt.tight_layout()
+        fig.savefig(os.path.join(output_dir, save_name), dpi=150)
+        plt.close(fig)
+
+    n = len(outputs_list)
+    if n == 0:
+        return
+
+    cols = min(4, n)
+    rows = (n + cols - 1) // cols
+    fig, axes = plt.subplots(rows, cols, figsize=(5 * cols, 4 * rows), squeeze=False)
+    for idx, outputs in enumerate(outputs_list):
+        r, c = divmod(idx, cols)
+        ax = axes[r][c]
+        img = outputs.numpy()
+        im = ax.imshow(img, cmap="hot", interpolation="nearest")
+        if filenames_list:
+            ax.set_title(os.path.splitext(filenames_list[idx])[0], fontsize=8)
+        else:
+            ax.set_title(f"img {idx}")
+        ax.axis("off")
+        plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    for idx in range(n, rows * cols):
+        r, c = divmod(idx, cols)
+        axes[r][c].axis("off")
+    plt.tight_layout()
+    fig.savefig(os.path.join(output_dir, f"{prefix}_combined.png"), dpi=150)
+    plt.close(fig)
 
 def train(args):
     os.makedirs(const.CHECKPOINT_DIR, exist_ok=True)
@@ -147,6 +224,18 @@ def evaluate(args):
     print(f"Using device: {device}")
     eval_once(test_dataloader, model)
 
+def validate(args):
+    config = yaml.safe_load(open(args.config, "r"))
+    model = build_model(config)
+    checkpoint = torch.load(args.checkpoint, map_location=device)
+    # print(checkpoint)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    validate_dataloader = build_validate_data_loader(args, config)
+    model.to(device)
+    print(f"Using device: {device}")
+    outputs_list, filenames_list = validate_once(validate_dataloader, model)
+    plot_dir = os.path.join(os.path.dirname(args.checkpoint) or ".", "validate_plots")
+    plot_outputs(outputs_list, plot_dir, prefix=f"validate_{args.category}", filenames_list=filenames_list)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train FastFlow on MVTec-AD dataset")
@@ -166,6 +255,7 @@ def parse_args():
     parser.add_argument(
         "-ckpt", "--checkpoint", type=str, help="path to load checkpoint"
     )
+    parser.add_argument("--validate", action="store_true", help="run validate only")
     args = parser.parse_args()
     return args
 
@@ -174,5 +264,7 @@ if __name__ == "__main__":
     args = parse_args()
     if args.eval:
         evaluate(args)
+    elif args.validate:
+        validate(args)
     else:
         train(args)
