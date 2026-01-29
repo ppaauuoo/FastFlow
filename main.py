@@ -51,7 +51,7 @@ def build_test_data_loader(args, config):
     )
 
 def build_validate_data_loader(args, config):
-    test_dataset = dataset.MVTecDataset(
+    valid_dataset = dataset.MVTecDataset(
         root=args.data,
         category=args.category,
         input_size=config["input_size"],
@@ -60,7 +60,7 @@ def build_validate_data_loader(args, config):
         return_filename=True,
     )
     return torch.utils.data.DataLoader(
-        test_dataset,
+        valid_dataset,
         batch_size=const.BATCH_SIZE,
         shuffle=False,
         num_workers=4,

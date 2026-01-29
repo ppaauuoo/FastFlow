@@ -39,9 +39,11 @@ class MVTecDataset(torch.utils.data.Dataset):
         image_file = self.image_files[index]
         image = Image.open(image_file).convert("RGB")
         image = self.image_transform(image)
-        if self.is_train:
+        if self.is_valid:
             if self.return_filename:
                 return image, os.path.basename(image_file)
+            return image
+        if self.is_train:
             return image
         else:
             if os.path.dirname(image_file).endswith("good"):
@@ -52,8 +54,6 @@ class MVTecDataset(torch.utils.data.Dataset):
                 gt_image_file = image_file.replace(test_token, gt_token)
                 target = Image.open(gt_image_file).convert("L")
                 target = self.target_transform(target)
-            if self.return_filename:
-                return image, target, os.path.basename(image_file)
             return image, target
 
     def __len__(self):
