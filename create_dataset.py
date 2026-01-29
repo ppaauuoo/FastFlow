@@ -16,15 +16,33 @@ def create_empty_mask(image_shape):
     return np.zeros(image_shape[:2], dtype=np.uint8)
 
 
+def _read_image_shape(image_path):
+    image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+    if image is None:
+        return None
+    return image.shape
+
+
+def resolve_cropped_folder(base_folder):
+    if base_folder is None:
+        return None
+    cropped = os.path.join(base_folder, 'cropped')
+    if os.path.isdir(cropped):
+        return cropped
+    return base_folder
+
+
+def list_image_files(folder):
+    return [f for f in os.listdir(folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+
+
 def create_dataset_structure(config):
     base_path = os.path.join(config['dataset']['output_folder'], config['dataset']['category_name'])
     
     folders = {
         'train_good': os.path.join(base_path, 'train', 'good'),
         'test_good': os.path.join(base_path, 'test', 'good'),
-        'test_anomaly': os.path.join(base_path, 'test', config['dataset']['anomaly_type']),
-        'ground_truth_good': os.path.join(base_path, 'ground_truth', 'good'),
-        'ground_truth_anomaly': os.path.join(base_path, 'ground_truth', config['dataset']['anomaly_type'])
+        'test_anomaly': os.path.join(base_path, 'test', config['dataset']['anomaly_type'])
     }
     
     for folder in folders.values():
@@ -34,8 +52,15 @@ def create_dataset_structure(config):
 
 
 def process_pass_images(config, folders):
-    pass_folder = config['dataset']['pass_folder']
-    image_files = [f for f in os.listdir(pass_folder) if f.endswith(('.jpg', '.jpeg', '.png'))]
+    pass_base = config['dataset']['pass_folder']
+    pass_folder = resolve_cropped_folder(pass_base)
+    image_files = [(pass_folder, f) for f in list_image_files(pass_folder)]
+    
+    overkill_base = config['dataset'].get('overkill_folder')
+    if overkill_base is not None:
+        overkill_folder = resolve_cropped_folder(overkill_base)
+        if overkill_folder is not None and os.path.isdir(overkill_folder):
+            image_files.extend([(overkill_folder, f) for f in list_image_files(overkill_folder)])
     
     train_split = config['dataset']['train_split']
     train_files, test_files = train_test_split(image_files, train_size=train_split, random_state=42)
@@ -43,55 +68,59 @@ def process_pass_images(config, folders):
     print(f"Processing Pass images: {len(train_files)} for train, {len(test_files)} for test")
     
     for filename in train_files:
-        src = os.path.join(pass_folder, filename)
-        dst = os.path.join(folders['train_good'], filename)
+        src = os.path.join(filename[0], filename[1])
+        out_name = filename[1]
+        dst = os.path.join(folders['train_good'], out_name)
         shutil.copy2(src, dst)
     
     for filename in test_files:
-        src = os.path.join(pass_folder, filename)
-        dst = os.path.join(folders['test_good'], filename)
+        src = os.path.join(filename[0], filename[1])
+        out_name = filename[1]
+        dst = os.path.join(folders['test_good'], out_name)
         shutil.copy2(src, dst)
-        
-        base_name = filename.rsplit('.', 1)[0]
-        mask_filename = f"{base_name}_mask.png"
-        mask_path = os.path.join(folders['ground_truth_good'], mask_filename)
-        
-        image = cv2.imread(src)
-        if image is not None:
-            mask = create_empty_mask(image.shape)
-            cv2.imwrite(mask_path, mask)
 
 
 def process_reject_images(config, folders):
-    reject_folder = config['dataset']['reject_cropped_folder']
+    dataset_cfg = config['dataset']
+    reject_base = dataset_cfg.get('reject_folder')
+    if reject_base is None:
+        reject_base = dataset_cfg.get('reject_cropped_folder')
+    reject_folder = resolve_cropped_folder(reject_base)
+    if reject_folder is None:
+        print("Warning: No reject folder configured")
+        return
     
     if not os.path.exists(reject_folder):
         print(f"Warning: Reject cropped folder '{reject_folder}' does not exist")
         return
     
-    image_files = [f for f in os.listdir(reject_folder) if f.endswith(('.jpg', '.jpeg', '.png'))]
+    image_files = list_image_files(reject_folder)
     print(f"Processing Reject images: {len(image_files)} images")
     
     for filename in image_files:
         src = os.path.join(reject_folder, filename)
         dst = os.path.join(folders['test_anomaly'], filename)
         shutil.copy2(src, dst)
-        
-        base_name = filename.rsplit('.', 1)[0]
-        mask_filename = f"{base_name}_mask.png"
-        
-        mask_src = os.path.join(reject_folder, 'masks', mask_filename)
-        mask_dst = os.path.join(folders['ground_truth_anomaly'], mask_filename)
-        
-        if os.path.exists(mask_src):
-            shutil.copy2(mask_src, mask_dst)
-            print(f"Copied mask for {filename}")
-        else:
-            print(f"Warning: No mask found for {filename}")
-            image = cv2.imread(src)
-            if image is not None:
-                mask = create_empty_mask(image.shape)
-                cv2.imwrite(mask_dst, mask)
+
+
+def process_overkill_images(config, folders):
+    dataset_cfg = config['dataset']
+    overkill_base = dataset_cfg.get('overkill_folder')
+    if overkill_base is None:
+        return
+    
+    overkill_folder = resolve_cropped_folder(overkill_base)
+    if not os.path.exists(overkill_folder):
+        print(f"Warning: Overkill folder '{overkill_folder}' does not exist")
+        return
+    
+    image_files = list_image_files(overkill_folder)
+    print(f"Processing Overkill images: {len(image_files)} images (as good)")
+    
+    for filename in image_files:
+        src = os.path.join(overkill_folder, filename)
+        dst = os.path.join(folders['test_good'], filename)
+        shutil.copy2(src, dst)
 
 
 def main():
@@ -105,7 +134,7 @@ def main():
     
     config = load_config(args.config)
     
-    pass_folder = config['dataset']['pass_folder']
+    pass_folder = resolve_cropped_folder(config['dataset']['pass_folder'])
     if not os.path.isdir(pass_folder):
         print(f"Error: Pass folder '{pass_folder}' does not exist")
         return
@@ -129,8 +158,6 @@ def main():
     print(f"    train/good/ - {len(os.listdir(folders['train_good']))} images")
     print(f"    test/good/ - {len(os.listdir(folders['test_good']))} images")
     print(f"    test/{config['dataset']['anomaly_type']}/ - {len(os.listdir(folders['test_anomaly']))} images")
-    print(f"    ground_truth/good/ - {len(os.listdir(folders['ground_truth_good']))} masks")
-    print(f"    ground_truth/{config['dataset']['anomaly_type']}/ - {len(os.listdir(folders['ground_truth_anomaly']))} masks")
 
 
 if __name__ == '__main__':

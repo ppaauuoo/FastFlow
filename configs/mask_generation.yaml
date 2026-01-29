@@ -27,7 +27,9 @@ mask_generation:
 
 dataset:
   pass_folder: "data/Pass"
+  reject_folder: "data/Reject"
   reject_cropped_folder: "data/Reject/cropped"
+  overkill_folder: "data/Overkill"
   output_folder: "data/dataset"
   category_name: "inspection"
   anomaly_type: "anomaly"
