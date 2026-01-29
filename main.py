@@ -247,7 +247,7 @@ def parse_args():
         "-cat",
         "--category",
         type=str,
-        choices=const.MVTEC_CATEGORIES,
+        # choices=const.MVTEC_CATEGORIES,
         required=True,
         help="category name in mvtec",
     )
