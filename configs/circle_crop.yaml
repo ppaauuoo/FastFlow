@@ -1,14 +1,14 @@
 circle:
   x: 3571
   y: 1583
-  min_radius: 170
+  min_radius: 165
   max_radius: 190
   screw_ratio: 0.62
 
 detection:
-  param1: 30
-  param2: 40
-  min_dist: 20
+  param1: 100
+  param2: 25
+  min_dist: 30
 
 images:
   supported_formats:
