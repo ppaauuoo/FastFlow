@@ -33,6 +33,7 @@ class MVTecDataset(torch.utils.data.Dataset):
                 ]
             )
         self.is_train = is_train
+        self.is_valid = is_valid
         self.return_filename = return_filename
 
     def __getitem__(self, index):
