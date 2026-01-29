@@ -1,1 +1,1 @@
-uv run python main.py -cfg configs/resnet18.yaml --data ./data/dataset/ -cat screw
+uv run python main.py -cfg configs/resnet18.yaml --data ./data/dataset/ -cat inspection
