@@ -55,7 +55,8 @@ def build_validate_data_loader(args, config):
         root=args.data,
         category=args.category,
         input_size=config["input_size"],
-        is_train=True,
+        is_train=False,
+        is_valid=True,
         return_filename=True,
     )
     return torch.utils.data.DataLoader(

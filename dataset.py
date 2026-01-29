@@ -8,7 +8,7 @@ from torchvision import transforms
 
 
 class MVTecDataset(torch.utils.data.Dataset):
-    def __init__(self, root, category, input_size, is_train=True, return_filename=False):
+    def __init__(self, root, category, input_size, is_train=True, return_filename=False, is_valid=False):
         self.image_transform = transforms.Compose(
             [
                 transforms.Resize(input_size),
@@ -16,14 +16,16 @@ class MVTecDataset(torch.utils.data.Dataset):
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
             ]
         )
-        if is_train:
+        if is_valid:
             self.image_files = glob(
                 os.path.join(root, category, "train", "good", "*.png")
-            ) + glob(os.path.join(root, category, "train", "good", "*.jpg"))
+            ) + glob(os.path.join(root, category, "test", "*", "*.png"))
+        elif is_train:
+            self.image_files = glob(
+                os.path.join(root, category, "train", "good", "*.png"))
         else:
             self.image_files = glob(
-                os.path.join(root, category, "test", "*", "*.png")
-            ) + glob(os.path.join(root, category, "test", "*", "*.jpg"))
+                os.path.join(root, category, "test", "*", "*.png"))
             self.target_transform = transforms.Compose(
                 [
                     transforms.Resize(input_size),
