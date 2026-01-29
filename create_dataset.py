@@ -57,7 +57,7 @@ def process_pass_images(config, folders):
     image_files = [(pass_folder, f) for f in list_image_files(pass_folder)]
     
     overkill_base = config['dataset'].get('overkill_folder')
-    if overkill_base is not None:
+    if (not config.get('pass_only', False)) and overkill_base is not None:
         overkill_folder = resolve_cropped_folder(overkill_base)
         if overkill_folder is not None and os.path.isdir(overkill_folder):
             image_files.extend([(overkill_folder, f) for f in list_image_files(overkill_folder)])

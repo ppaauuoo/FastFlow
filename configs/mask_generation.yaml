@@ -34,3 +34,4 @@ dataset:
   category_name: "inspection"
   anomaly_type: "anomaly"
   train_split: 0.8
+  pass_only: true
