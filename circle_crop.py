@@ -65,6 +65,19 @@ def crop_around_circle(image, circle):
     
     return image[y1:y2, x1:x2]
 
+def create_annular_mask_alpha(image, outer_circle, inner_circle):
+    outer_cx, outer_cy, outer_r = outer_circle
+    inner_cx, inner_cy, inner_r = inner_circle
+    
+    mask = np.zeros(image.shape[:2], dtype=np.uint8)
+    
+    cv2.circle(mask, (outer_cx, outer_cy), outer_r, 255, -1)
+    cv2.circle(mask, (inner_cx, inner_cy), inner_r, 0, -1)
+    
+    b, g, r = cv2.split(image)
+    result = cv2.merge([b, g, r, mask])
+    
+    return result
 
 def process_images(input_folder, config):
     supported_formats = config['images']['supported_formats']
@@ -88,7 +101,8 @@ def process_images(input_folder, config):
     
     for filename in image_files:
         input_path = os.path.join(input_folder, filename)
-        output_path = os.path.join(output_folder, filename)
+        base_name = os.path.splitext(filename)[0]
+        output_path = os.path.join(output_folder, base_name + '.png')
         
         image = cv2.imread(input_path)
         if image is None:
@@ -112,15 +126,41 @@ def process_images(input_folder, config):
             failure_count += 1
             continue
         
+        screw = detect_circle_at_position(
+            image,
+            circle_config['x'],
+            circle_config['y'],
+            int(circle_config['min_radius'] * circle_config['screw_ratio']),
+            int(circle_config['max_radius'] * circle_config['screw_ratio']),
+            detection_config['param1'],
+            detection_config['param2'],
+            detection_config['min_dist']
+        )
+
         cropped = crop_around_circle(image, circle)
-        
+
+        print(f"Processed {filename} - circle at ({circle[0]}, {circle[1]}, r={circle[2]})")
+        if screw is not None:
+            print(f"Processed {filename} - screw at ({screw[0]}, {screw[1]}, r={screw[2]})")
+            cx, cy, r = circle
+            x1 = max(0, int(cx - r))
+            y1 = max(0, int(cy - r))
+            
+            adjusted_outer = (r, r, r)
+            screw_cx_adj = screw[0] - x1
+            screw_cy_adj = screw[1] - y1
+            adjusted_inner = (screw_cx_adj, screw_cy_adj, screw[2])
+            
+            cropped = create_annular_mask_alpha(cropped, adjusted_outer, adjusted_inner)
+        else:
+            print(f"Warning: Inner circle not detected for {filename}, skipping mask")        
+
         if cropped.size == 0:
             print(f"Failed to crop {filename} - empty result")
             failure_count += 1
             continue
         
         cv2.imwrite(output_path, cropped)
-        print(f"Processed {filename} - circle at ({circle[0]}, {circle[1]}, r={circle[2]})")
         success_count += 1
     
     print(f"\nSummary: {success_count} successful, {failure_count} failed")
