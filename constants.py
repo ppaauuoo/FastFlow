@@ -1,4 +1,4 @@
-CHECKPOINT_DIR = "_fastflow_experiment_checkpoints"
+CHECKPOINT_DIR = "data/fastflow_experiment_checkpoints"
 
 MVTEC_CATEGORIES = [
     "bottle",
