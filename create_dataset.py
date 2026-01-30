@@ -51,32 +51,59 @@ def create_dataset_structure(config):
     return folders
 
 
-def process_pass_images(config, folders):
+def collect_good_images(config):
+    """Collect all pass and overkill images together"""
+    good_images = []
+    
+    # Collect pass images
     pass_base = config['dataset']['pass_folder']
     pass_folder = resolve_cropped_folder(pass_base)
-    image_files = [(pass_folder, f) for f in list_image_files(pass_folder)]
+    pass_files = [(pass_folder, f, 'pass') for f in list_image_files(pass_folder)]
+    good_images.extend(pass_files)
     
-    overkill_base = config['dataset'].get('overkill_folder')
-    if (not config.get('pass_only', False)) and overkill_base is not None:
-        overkill_folder = resolve_cropped_folder(overkill_base)
-        if overkill_folder is not None and os.path.isdir(overkill_folder):
-            image_files.extend([(overkill_folder, f) for f in list_image_files(overkill_folder)])
+    # Collect overkill images if available
+    if not config['dataset'].get('pass_only', False):
+        overkill_base = config['dataset'].get('overkill_folder')
+        if overkill_base:
+            overkill_folder = resolve_cropped_folder(overkill_base)
+            if os.path.exists(overkill_folder):
+                overkill_files = [(overkill_folder, f, 'overkill') for f in list_image_files(overkill_folder)]
+                good_images.extend(overkill_files)
+    
+    return good_images
+
+
+def process_good_images(config, folders):
+    """Process pooled pass and overkill images with train/test split"""
+    good_images = collect_good_images(config)
+    
+    if not good_images:
+        print("No good images found")
+        return
     
     train_split = config['dataset']['train_split']
-    train_files, test_files = train_test_split(image_files, train_size=train_split, random_state=42)
+    train_files, test_files = train_test_split(good_images, train_size=train_split, random_state=42)
     
-    print(f"Processing Pass images: {len(train_files)} for train, {len(test_files)} for test")
+    # Count pass vs overkill for reporting
+    train_pass = sum(1 for f in train_files if f[2] == 'pass')
+    train_overkill = sum(1 for f in train_files if f[2] == 'overkill')
+    test_pass = sum(1 for f in test_files if f[2] == 'pass')
+    test_overkill = sum(1 for f in test_files if f[2] == 'overkill')
     
-    for filename in train_files:
-        src = os.path.join(filename[0], filename[1])
-        out_name = filename[1]
-        dst = os.path.join(folders['train_good'], out_name)
+    print(f"Processing Good images (Pass + Overkill):")
+    print(f"  Train: {len(train_files)} total (pass: {train_pass}, overkill: {train_overkill})")
+    print(f"  Test: {len(test_files)} total (pass: {test_pass}, overkill: {test_overkill})")
+    
+    # Copy train files
+    for folder_path, filename, source_type in train_files:
+        src = os.path.join(folder_path, filename)
+        dst = os.path.join(folders['train_good'], filename)
         shutil.copy2(src, dst)
     
-    for filename in test_files:
-        src = os.path.join(filename[0], filename[1])
-        out_name = filename[1]
-        dst = os.path.join(folders['test_good'], out_name)
+    # Copy test files
+    for folder_path, filename, source_type in test_files:
+        src = os.path.join(folder_path, filename)
+        dst = os.path.join(folders['test_good'], filename)
         shutil.copy2(src, dst)
 
 
@@ -103,24 +130,6 @@ def process_reject_images(config, folders):
         shutil.copy2(src, dst)
 
 
-def process_overkill_images(config, folders):
-    dataset_cfg = config['dataset']
-    overkill_base = dataset_cfg.get('overkill_folder')
-    if overkill_base is None:
-        return
-    
-    overkill_folder = resolve_cropped_folder(overkill_base)
-    if not os.path.exists(overkill_folder):
-        print(f"Warning: Overkill folder '{overkill_folder}' does not exist")
-        return
-    
-    image_files = list_image_files(overkill_folder)
-    print(f"Processing Overkill images: {len(image_files)} images (as good)")
-    
-    for filename in image_files:
-        src = os.path.join(overkill_folder, filename)
-        dst = os.path.join(folders['test_good'], filename)
-        shutil.copy2(src, dst)
 
 
 def main():
@@ -146,8 +155,10 @@ def main():
     print(f"Anomaly type: {config['dataset']['anomaly_type']}")
     print()
     
-    process_pass_images(config, folders)
+    # Process pooled pass and overkill images
+    process_good_images(config, folders)
     print()
+    
     process_reject_images(config, folders)
     
     print()

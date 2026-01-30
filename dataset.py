@@ -17,9 +17,17 @@ class MVTecDataset(torch.utils.data.Dataset):
             ]
         )
         if is_valid:
+            # self.image_files = glob(
+            #     os.path.join(root, category, "train", "good", "*.png")
+            # ) + glob(os.path.join(root, category, "test", "*", "*.png"))
             self.image_files = glob(
-                os.path.join(root, category, "train", "good", "*.png")
-            ) + glob(os.path.join(root, category, "test", "*", "*.png"))
+                os.path.join(root, category, "test", "anomaly", "*.png"))
+            self.target_transform = transforms.Compose(
+                [
+                    transforms.Resize(input_size),
+                    transforms.ToTensor(),
+                ]
+            )
         elif is_train:
             self.image_files = glob(
                 os.path.join(root, category, "train", "good", "*.png"))
