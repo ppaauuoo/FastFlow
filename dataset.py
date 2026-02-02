@@ -21,7 +21,7 @@ class MVTecDataset(torch.utils.data.Dataset):
             #     os.path.join(root, category, "train", "good", "*.png")
             # ) + glob(os.path.join(root, category, "test", "*", "*.png"))
             self.image_files = glob(
-                os.path.join(root, category, "test", "anomaly", "*.png"))
+                os.path.join(root, category, "valid", "*.png"))
             self.target_transform = transforms.Compose(
                 [
                     transforms.Resize(input_size),
